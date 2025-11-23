@@ -240,7 +240,7 @@ finance_data$color <- ifelse(finance_data$is_depaul, depaul_color, peer_color)
 
 # Tuition
 
-## Row {height="25%"}
+## Row {height="20%"}
 
 ```{r}
 #| content: valuebox
@@ -287,7 +287,7 @@ list(
 )
 ```
 
-## Row {height="75%"}
+## Row {height="80%"}
 
 ### Column {width="70%"}
 
@@ -389,7 +389,7 @@ DePaul is the **2nd most affordable** among 26 peer institutions, offering $`r f
 
 # Retention & Graduation
 
-## Row {height="25%"}
+## Row {height="20%"}
 
 ```{r}
 #| content: valuebox
@@ -436,7 +436,7 @@ list(
 )
 ```
 
-## Row {height="75%"}
+## Row {height="80%"}
 
 ### Column {width="70%"}
 
@@ -542,7 +542,7 @@ These metrics reflect the Fall 2022 cohort for retention and 2017 cohort for gra
 
 # Financial Health
 
-## Row {height="25%"}
+## Row {height="20%"}
 
 ```{r}
 #| content: valuebox
@@ -589,7 +589,7 @@ list(
 )
 ```
 
-## Row {height="75%"}
+## Row {height="80%"}
 
 ### Column {width="70%"}
 

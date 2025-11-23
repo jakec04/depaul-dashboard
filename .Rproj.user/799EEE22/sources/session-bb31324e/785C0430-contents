@@ -20,20 +20,39 @@ format:
   color: white !important;
 }
 
+/* Make tab navigation text white on blue background */
+.navbar-nav .nav-link {
+  color: white !important;
+}
+
+.navbar-nav .nav-link.active {
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.navbar-nav .nav-link:hover {
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
 /* Optimize value boxes for big numbers without icons */
 .valuebox {
   padding: 20px 15px !important;
+  min-height: 120px !important;
+  height: auto !important;
 }
 
 .valuebox-value {
   font-size: 2.5rem !important;
   font-weight: 700 !important;
   line-height: 1.2 !important;
+  white-space: nowrap !important;
 }
 
 .valuebox-title {
   font-size: 0.9rem !important;
   margin-bottom: 8px !important;
+  line-height: 1.3 !important;
 }
 ```
 
@@ -152,9 +171,76 @@ retention_data$color <- ifelse(retention_data$is_depaul, depaul_color, peer_colo
 sort_by <- "retention"  # Change to: "retention", "grad_6yr", or "grad_4yr"
 ```
 
+```{r load-finance-data}
+# FINANCE DATA
+csv_path_finance <- "/Users/jakecox/Downloads/compare-institutions-2025-11-21-17-50.xlsx - Finance (1).csv"
+
+header_row_fin <- read.csv(csv_path_finance,
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+institutions_fin <- as.character(header_row_fin[1, 4:ncol(header_row_fin)])
+institutions_fin <- institutions_fin[institutions_fin != ""]
+
+data_fin <- read.csv(csv_path_finance, 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+# Row 12: Tuition as % of revenue (FASB - private schools)
+tuition_pct_revenue <- as.numeric(data_fin[8, 4:ncol(data_fin)])
+
+# Row 24: Core revenue per FTE - Tuition and fees
+revenue_per_fte <- as.numeric(data_fin[20, 4:ncol(data_fin)])
+
+# Row 50: Core expenses per FTE - Instruction
+instruction_per_fte <- as.numeric(data_fin[46, 4:ncol(data_fin)])
+
+# Row 36: Instruction as % of expenses (FASB)
+instruction_pct_expenses <- as.numeric(data_fin[32, 4:ncol(data_fin)])
+
+if(length(tuition_pct_revenue) > length(institutions_fin)) {
+  tuition_pct_revenue <- tuition_pct_revenue[1:length(institutions_fin)]
+  revenue_per_fte <- revenue_per_fte[1:length(institutions_fin)]
+  instruction_per_fte <- instruction_per_fte[1:length(institutions_fin)]
+  instruction_pct_expenses <- instruction_pct_expenses[1:length(institutions_fin)]
+}
+
+finance_data <- data.frame(
+  institution = institutions_fin,
+  tuition_pct = tuition_pct_revenue,
+  revenue_fte = revenue_per_fte,
+  instruction_fte = instruction_per_fte,
+  instruction_pct = instruction_pct_expenses,
+  stringsAsFactors = FALSE
+)
+
+finance_data <- finance_data[!is.na(finance_data$tuition_pct), ]
+finance_data$is_depaul <- grepl("DePaul", finance_data$institution, ignore.case = TRUE)
+
+# Sort by instruction spending per FTE (higher is better for student investment)
+finance_data <- finance_data[order(-finance_data$instruction_fte), ]
+finance_data$rank <- 1:nrow(finance_data)
+
+finance_data$institution_clean <- gsub("\\.", " ", finance_data$institution)
+
+depaul_rank_finance <- finance_data$rank[finance_data$is_depaul]
+depaul_tuition_pct <- finance_data$tuition_pct[finance_data$is_depaul]
+depaul_revenue_fte <- finance_data$revenue_fte[finance_data$is_depaul]
+depaul_instruction_fte <- finance_data$instruction_fte[finance_data$is_depaul]
+depaul_instruction_pct <- finance_data$instruction_pct[finance_data$is_depaul]
+depaul_percentile_finance <- round((depaul_rank_finance / nrow(finance_data)) * 100)
+
+median_instruction_fte <- median(finance_data$instruction_fte)
+min_instruction_fte <- min(finance_data$instruction_fte)
+max_instruction_fte <- max(finance_data$instruction_fte)
+median_tuition_pct <- median(finance_data$tuition_pct)
+
+pct_diff_instruction <- round(((depaul_instruction_fte - median_instruction_fte) / median_instruction_fte) * 100, 1)
+
+finance_data$color <- ifelse(finance_data$is_depaul, depaul_color, peer_color)
+```
+
 # Tuition
 
-## Row {height="20%"}
+## Row {height="25%"}
 
 ```{r}
 #| content: valuebox
@@ -201,7 +287,7 @@ list(
 )
 ```
 
-## Row {height="80%"}
+## Row {height="75%"}
 
 ### Column {width="70%"}
 
@@ -303,7 +389,7 @@ DePaul is the **2nd most affordable** among 26 peer institutions, offering $`r f
 
 # Retention & Graduation
 
-## Row {height="20%"}
+## Row {height="25%"}
 
 ```{r}
 #| content: valuebox
@@ -350,7 +436,7 @@ list(
 )
 ```
 
-## Row {height="80%"}
+## Row {height="75%"}
 
 ### Column {width="70%"}
 
@@ -450,6 +536,164 @@ These metrics reflect the Fall 2022 cohort for retention and 2017 cohort for gra
 *Peer group includes DePaul-selected institutions plus Big East conference members*
 
 *Source: IPEDS • Retention: Fall 2022 cohort • Graduation: 2017 cohort*
+:::
+
+:::
+
+# Financial Health
+
+## Row {height="25%"}
+
+```{r}
+#| content: valuebox
+#| title: "Instruction Rank"
+list(
+  color = if(depaul_rank_finance <= nrow(finance_data)/3) "success" else if(depaul_rank_finance <= 2*nrow(finance_data)/3) "warning" else "danger",
+  value = paste(depaul_rank_finance, "of", nrow(finance_data))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Instruction per FTE"
+list(
+  color = "info",
+  value = paste0("$", format(round(depaul_instruction_fte), big.mark=","))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "% on Instruction"
+list(
+  color = "info",
+  value = paste0(depaul_instruction_pct, "%")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Tuition Dependence"
+list(
+  color = if(depaul_tuition_pct < 70) "success" else if(depaul_tuition_pct < 80) "warning" else "danger",
+  value = paste0(depaul_tuition_pct, "%")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Peer Median"
+list(
+  color = "light",
+  value = paste0("$", format(round(median_instruction_fte), big.mark=","))
+)
+```
+
+## Row {height="75%"}
+
+### Column {width="70%"}
+
+```{r}
+#| title: "DePaul vs. Peer Institutions - Instructional Spending per Student"
+#| padding: 0px
+
+finance_data_display <- finance_data[nrow(finance_data):1, ]
+
+fig_finance <- plot_ly(
+  data = finance_data_display,
+  y = ~institution_clean,
+  x = ~instruction_fte,
+  type = 'bar',
+  orientation = 'h',
+  marker = list(color = ~color),
+  text = ~paste0("$", format(round(instruction_fte), big.mark=",")),
+  textposition = 'outside',
+  textfont = list(size = 10),
+  hoverinfo = 'text',
+  hovertext = ~paste0(
+    '<b>', institution_clean, '</b>\n\n',
+    'Instruction per FTE: $', format(round(instruction_fte), big.mark=","), '\n',
+    'Instruction % of Budget: ', instruction_pct, '%\n',
+    'Tuition % of Revenue: ', tuition_pct, '%\n',
+    'Revenue per FTE: $', format(round(revenue_fte), big.mark=","), '\n\n',
+    'Spending Rank: ', rank, ' of ', nrow(finance_data), '\n',
+    '(Higher rank = more investment per student)'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "Instructional Spending per FTE Student ($)",
+      tickformat = "$,.0f",
+      showgrid = TRUE,
+      gridcolor = "#f0f0f0"
+    ),
+    yaxis = list(
+      title = "",
+      categoryorder = "array",
+      categoryarray = ~institution_clean
+    ),
+    showlegend = FALSE,
+    margin = list(l = 150, r = 80, t = 10, b = 70),
+    plot_bgcolor = "white",
+    paper_bgcolor = "white",
+    hoverlabel = list(
+      bgcolor = "rgba(255, 255, 255, 0.95)",
+      bordercolor = "#0032A0",
+      font = list(size = 13, color = "black"),
+      align = "left"
+    ),
+    annotations = list(
+      list(
+        text = "Peer group: DePaul-selected institutions + Big East conference members | Data: Fiscal Year 2023 | Source: IPEDS",
+        xref = "paper",
+        yref = "paper",
+        x = 0.5,
+        y = -0.08,
+        xanchor = "center",
+        showarrow = FALSE,
+        font = list(size = 9, color = "#666")
+      )
+    )
+  ) %>%
+  config(displayModeBar = TRUE, displaylogo = FALSE)
+
+fig_finance
+```
+
+### Column {width="30%"}
+
+::: {.card title="Financial Health Analysis"}
+
+**DePaul's Investment**
+
+- **Instruction Spending Rank:** `r depaul_rank_finance` of `r nrow(finance_data)`
+- **Instruction per Student:** $`r format(round(depaul_instruction_fte), big.mark=",")`
+- **Instruction % of Budget:** `r depaul_instruction_pct`%
+- **Revenue per Student:** $`r format(round(depaul_revenue_fte), big.mark=",")`
+
+**Peer Comparison**
+
+- **Peer Median Instruction:** $`r format(round(median_instruction_fte), big.mark=",")`
+- **Range:** $`r format(round(min_instruction_fte), big.mark=",")` - $`r format(round(max_instruction_fte), big.mark=",")`
+- **DePaul Percentile:** `r depaul_percentile_finance`th
+
+**Financial Profile**
+
+- **Tuition Dependence:** `r depaul_tuition_pct`% of revenue from tuition
+- DePaul's instructional spending is `r ifelse(pct_diff_instruction >= 0, paste0(abs(pct_diff_instruction), "% above"), paste0(abs(pct_diff_instruction), "% below"))` the peer median
+
+**Context**
+
+Higher instructional spending per student typically indicates greater investment in faculty, academic resources, and student learning. DePaul allocates `r depaul_instruction_pct`% of its budget to instruction.
+
+Tuition dependence shows financial stability - lower percentages indicate more diversified revenue (endowment, gifts, grants).
+
+---
+
+::: {style="font-size: 0.85em; color: #666;"}
+*Peer group includes DePaul-selected institutions plus Big East conference members*
+
+*Source: IPEDS • Fiscal Year 2023 • Private institutions (FASB reporting)*
 :::
 
 :::

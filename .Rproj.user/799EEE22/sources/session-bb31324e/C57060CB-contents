@@ -38,8 +38,6 @@ format:
 /* Optimize value boxes for big numbers without icons */
 .valuebox {
   padding: 20px 15px !important;
-  min-height: 120px !important;
-  height: auto !important;
 }
 
 .valuebox-value {
@@ -47,11 +45,13 @@ format:
   font-weight: 700 !important;
   line-height: 1.2 !important;
   white-space: nowrap !important;
+  overflow: visible !important;
 }
 
 .valuebox-title {
   font-size: 0.9rem !important;
   margin-bottom: 8px !important;
+  white-space: normal !important;
   line-height: 1.3 !important;
 }
 ```
@@ -240,7 +240,7 @@ finance_data$color <- ifelse(finance_data$is_depaul, depaul_color, peer_color)
 
 # Tuition
 
-## Row {height="25%"}
+## Row {height="20%"}
 
 ```{r}
 #| content: valuebox
@@ -287,7 +287,7 @@ list(
 )
 ```
 
-## Row {height="75%"}
+## Row {height="80%"}
 
 ### Column {width="70%"}
 
@@ -389,7 +389,7 @@ DePaul is the **2nd most affordable** among 26 peer institutions, offering $`r f
 
 # Retention & Graduation
 
-## Row {height="25%"}
+## Row {height="20%"}
 
 ```{r}
 #| content: valuebox
@@ -436,7 +436,7 @@ list(
 )
 ```
 
-## Row {height="75%"}
+## Row {height="80%"}
 
 ### Column {width="70%"}
 
@@ -542,11 +542,11 @@ These metrics reflect the Fall 2022 cohort for retention and 2017 cohort for gra
 
 # Financial Health
 
-## Row {height="25%"}
+## Row {height="20%"}
 
 ```{r}
 #| content: valuebox
-#| title: "Instruction Rank"
+#| title: "Instruction Spending Rank"
 list(
   color = if(depaul_rank_finance <= nrow(finance_data)/3) "success" else if(depaul_rank_finance <= 2*nrow(finance_data)/3) "warning" else "danger",
   value = paste(depaul_rank_finance, "of", nrow(finance_data))
@@ -555,7 +555,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Instruction per FTE"
+#| title: "Instruction per Student"
 list(
   color = "info",
   value = paste0("$", format(round(depaul_instruction_fte), big.mark=","))
@@ -564,7 +564,7 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "% on Instruction"
+#| title: "% Budget on Instruction"
 list(
   color = "info",
   value = paste0(depaul_instruction_pct, "%")
@@ -582,14 +582,14 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "Peer Median"
+#| title: "Peer Median Instruction"
 list(
   color = "light",
   value = paste0("$", format(round(median_instruction_fte), big.mark=","))
 )
 ```
 
-## Row {height="75%"}
+## Row {height="80%"}
 
 ### Column {width="70%"}
 
