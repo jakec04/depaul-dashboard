@@ -1,0 +1,462 @@
+---
+title: "How DePaul Stacks Up"
+format: 
+  dashboard:
+    theme: cosmo
+    orientation: columns
+---
+
+```{css}
+/* DePaul blue header with white text */
+.navbar {
+  background-color: #0032A0 !important;
+}
+
+.navbar-brand {
+  color: white !important;
+  font-weight: 600;
+}
+
+.navbar .navbar-title {
+  color: white !important;
+}
+
+/* Optimize value boxes for big numbers without icons */
+.valuebox {
+  padding: 25px 15px !important;
+  min-height: 140px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+.valuebox-value {
+  font-size: 2.2rem !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  margin: 10px 0 !important;
+}
+
+.valuebox-title {
+  font-size: 0.9rem !important;
+  margin-bottom: 5px !important;
+  line-height: 1.3 !important;
+}
+```
+
+```{r setup, include=FALSE}
+library(knitr)
+library(plotly)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load-tuition-data}
+# TUITION DATA
+csv_path_tuition <- "/Users/jakecox/Downloads/compare-institutions-2025-11-21-17-50.xlsx - Student Charges.csv"
+
+header_row <- read.csv(csv_path_tuition,
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+institutions <- as.character(header_row[1, 4:ncol(header_row)])
+institutions <- institutions[institutions != ""]
+
+data <- read.csv(csv_path_tuition, 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+tuition_values <- as.numeric(data[24, 4:ncol(data)])
+
+if(length(tuition_values) > length(institutions)) {
+  tuition_values <- tuition_values[1:length(institutions)]
+}
+
+tuition_data <- data.frame(
+  institution = institutions,
+  tuition = tuition_values,
+  stringsAsFactors = FALSE
+)
+
+tuition_data <- tuition_data[!is.na(tuition_data$tuition), ]
+tuition_data$is_depaul <- grepl("DePaul", tuition_data$institution, ignore.case = TRUE)
+
+tuition_data <- tuition_data[order(tuition_data$tuition), ]
+tuition_data$rank <- 1:nrow(tuition_data)
+
+tuition_data$institution_clean <- gsub("\\.", " ", tuition_data$institution)
+
+depaul_rank_tuition <- tuition_data$rank[tuition_data$is_depaul]
+depaul_tuition <- tuition_data$tuition[tuition_data$is_depaul]
+depaul_percentile_tuition <- round((depaul_rank_tuition / nrow(tuition_data)) * 100)
+
+median_tuition <- median(tuition_data$tuition)
+min_tuition <- min(tuition_data$tuition)
+max_tuition <- max(tuition_data$tuition)
+q1_tuition <- quantile(tuition_data$tuition, 0.25)
+q3_tuition <- quantile(tuition_data$tuition, 0.75)
+
+pct_diff_tuition <- round(((depaul_tuition - median_tuition) / median_tuition) * 100, 1)
+
+depaul_color <- "#0032A0"
+peer_color <- "#8C8C8C"
+tuition_data$color <- ifelse(tuition_data$is_depaul, depaul_color, peer_color)
+```
+
+```{r load-retention-data}
+# RETENTION DATA
+csv_path_retention <- "/Users/jakecox/rstudio/990-analysis/compare-institutions-2025-11-21-17-50.xlsx - Retention and Graduation.csv"
+
+header_row_ret <- read.csv(csv_path_retention,
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+institutions_ret <- as.character(header_row_ret[1, 4:ncol(header_row_ret)])
+institutions_ret <- institutions_ret[institutions_ret != ""]
+
+data_ret <- read.csv(csv_path_retention, 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+retention_values <- as.numeric(data_ret[1, 4:ncol(data_ret)])
+grad_6yr_values <- as.numeric(data_ret[7, 4:ncol(data_ret)])
+grad_4yr_values <- as.numeric(data_ret[5, 4:ncol(data_ret)])
+
+if(length(retention_values) > length(institutions_ret)) {
+  retention_values <- retention_values[1:length(institutions_ret)]
+  grad_6yr_values <- grad_6yr_values[1:length(institutions_ret)]
+  grad_4yr_values <- grad_4yr_values[1:length(institutions_ret)]
+}
+
+retention_data <- data.frame(
+  institution = institutions_ret,
+  retention = retention_values,
+  grad_6yr = grad_6yr_values,
+  grad_4yr = grad_4yr_values,
+  stringsAsFactors = FALSE
+)
+
+retention_data <- retention_data[!is.na(retention_data$retention), ]
+retention_data$is_depaul <- grepl("DePaul", retention_data$institution, ignore.case = TRUE)
+
+retention_data <- retention_data[order(-retention_data$retention), ]
+retention_data$rank <- 1:nrow(retention_data)
+
+retention_data$institution_clean <- gsub("\\.", " ", retention_data$institution)
+
+depaul_rank_retention <- retention_data$rank[retention_data$is_depaul]
+depaul_retention <- retention_data$retention[retention_data$is_depaul]
+depaul_grad_6yr <- retention_data$grad_6yr[retention_data$is_depaul]
+depaul_grad_4yr <- retention_data$grad_4yr[retention_data$is_depaul]
+depaul_percentile_retention <- round((depaul_rank_retention / nrow(retention_data)) * 100)
+
+median_retention <- median(retention_data$retention)
+min_retention <- min(retention_data$retention)
+max_retention <- max(retention_data$retention)
+median_grad_6yr <- median(retention_data$grad_6yr)
+
+pct_diff_retention <- round(((depaul_retention - median_retention) / median_retention) * 100, 1)
+pct_diff_grad <- round(((depaul_grad_6yr - median_grad_6yr) / median_grad_6yr) * 100, 1)
+
+retention_data$color <- ifelse(retention_data$is_depaul, depaul_color, peer_color)
+
+# Sort preference for retention chart
+sort_by <- "retention"  # Change to: "retention", "grad_6yr", or "grad_4yr"
+```
+
+# Tuition
+
+## Row {height="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Affordability Rank"
+list(
+  color = "success",
+  value = paste(depaul_rank_tuition, "of", nrow(tuition_data))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "DePaul Tuition"
+list(
+  color = "info",
+  value = paste0("$", format(depaul_tuition, big.mark=","))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Below Median"
+list(
+  color = "success",
+  value = paste0("$", format(abs(depaul_tuition - median_tuition), big.mark=","))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Percentile"
+list(
+  color = "success",
+  value = paste0(depaul_percentile_tuition, "th")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Peer Median"
+list(
+  color = "light",
+  value = paste0("$", format(median_tuition, big.mark=","))
+)
+```
+
+## Row {height="80%"}
+
+### Column {width="70%"}
+
+```{r}
+#| title: "DePaul vs. Peer Institutions - Undergraduate Tuition (2024-25)"
+#| padding: 0px
+
+tuition_data_display <- tuition_data[nrow(tuition_data):1, ]
+
+fig_tuition <- plot_ly(
+  data = tuition_data_display,
+  y = ~institution_clean,
+  x = ~tuition,
+  type = 'bar',
+  orientation = 'h',
+  marker = list(color = ~color),
+  text = ~paste0("$", format(tuition, big.mark=",")),
+  textposition = 'outside',
+  textfont = list(size = 10),
+  hoverinfo = 'text',
+  hovertext = ~paste0(
+    '<b>', institution_clean, '</b>\n\n',
+    'Tuition: $', format(tuition, big.mark=","), '\n',
+    'Affordability Rank: ', rank, ' of ', nrow(tuition_data), '\n',
+    '(Lower rank = more affordable)'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "Annual Tuition & Fees ($)",
+      tickformat = "$,.0f",
+      showgrid = TRUE,
+      gridcolor = "#f0f0f0"
+    ),
+    yaxis = list(
+      title = "",
+      categoryorder = "array",
+      categoryarray = ~institution_clean
+    ),
+    showlegend = FALSE,
+    margin = list(l = 150, r = 80, t = 10, b = 70),
+    plot_bgcolor = "white",
+    paper_bgcolor = "white",
+    hoverlabel = list(
+      bgcolor = "rgba(255, 255, 255, 0.95)",
+      bordercolor = "#0032A0",
+      font = list(size = 13, color = "black"),
+      align = "left"
+    ),
+    annotations = list(
+      list(
+        text = "Peer group: DePaul-selected institutions + Big East conference members | *UConn is the only public institution | Source: IPEDS • AY 2024-25",
+        xref = "paper",
+        yref = "paper",
+        x = 0.5,
+        y = -0.08,
+        xanchor = "center",
+        showarrow = FALSE,
+        font = list(size = 9, color = "#666")
+      )
+    )
+  ) %>%
+  config(displayModeBar = TRUE, displaylogo = FALSE)
+
+fig_tuition
+```
+
+### Column {width="30%"}
+
+::: {.card title="Tuition Analysis"}
+
+**DePaul's Position**
+
+- **Affordability Rank:** `r depaul_rank_tuition` of `r nrow(tuition_data)` (2nd most affordable)
+- **Tuition:** $`r format(depaul_tuition, big.mark=",")`
+- **Below Median:** $`r format(abs(depaul_tuition - median_tuition), big.mark=",")` (`r abs(pct_diff_tuition)`%)
+
+**Peer Comparison**
+
+- **Peer Median:** $`r format(median_tuition, big.mark=",")`
+- **Range:** $`r format(min_tuition, big.mark=",")` - $`r format(max_tuition, big.mark=",")`
+- **DePaul Percentile:** `r depaul_percentile_tuition`th
+
+*Note: University of Connecticut ($`r format(min_tuition, big.mark=",")`) is the only public institution in this peer group; all others are private.*
+
+**Value Proposition**
+
+DePaul is the **2nd most affordable** among 26 peer institutions, offering $`r format(abs(depaul_tuition - median_tuition), big.mark=",")` in savings compared to the median while maintaining comparable quality and urban access.
+
+---
+
+::: {style="font-size: 0.85em; color: #666;"}
+*Peer group includes DePaul-selected institutions plus Big East conference members*
+
+*Source: IPEDS • AY 2024-25 • In-state undergraduate tuition & fees*
+:::
+
+:::
+
+# Retention & Graduation
+
+## Row {height="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Retention Rank"
+list(
+  color = if(depaul_rank_retention <= nrow(retention_data)/3) "success" else if(depaul_rank_retention <= 2*nrow(retention_data)/3) "warning" else "danger",
+  value = paste(depaul_rank_retention, "of", nrow(retention_data))
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "1st-2nd Year Retention"
+list(
+  color = "info",
+  value = paste0(depaul_retention, "%")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "6-Year Grad Rate"
+list(
+  color = "info",
+  value = paste0(depaul_grad_6yr, "%")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "4-Year Grad Rate"
+list(
+  color = "info",
+  value = paste0(depaul_grad_4yr, "%")
+)
+```
+
+```{r}
+#| content: valuebox
+#| title: "Peer Median Retention"
+list(
+  color = "light",
+  value = paste0(median_retention, "%")
+)
+```
+
+## Row {height="80%"}
+
+### Column {width="70%"}
+
+```{r}
+#| title: "DePaul vs. Peer Institutions - Retention & Graduation Rates"
+#| padding: 0px
+
+retention_data_display <- retention_data[nrow(retention_data):1, ]
+
+fig_retention <- plot_ly(
+  data = retention_data_display,
+  y = ~institution_clean,
+  x = ~retention,
+  type = 'bar',
+  orientation = 'h',
+  marker = list(color = ~color),
+  text = ~paste0(retention, "%"),
+  textposition = 'outside',
+  textfont = list(size = 10),
+  hoverinfo = 'text',
+  hovertext = ~paste0(
+    '<b>', institution_clean, '</b>\n\n',
+    'Retention Rate: ', retention, '%\n',
+    '6-Year Grad: ', grad_6yr, '%\n',
+    '4-Year Grad: ', grad_4yr, '%\n\n',
+    'Retention Rank: ', rank, ' of ', nrow(retention_data), '\n',
+    '(Higher rank = better retention)'
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "First-to-Second Year Retention Rate (%)",
+      range = c(0, 105),
+      showgrid = TRUE,
+      gridcolor = "#f0f0f0"
+    ),
+    yaxis = list(
+      title = "",
+      categoryorder = "array",
+      categoryarray = ~institution_clean
+    ),
+    showlegend = FALSE,
+    margin = list(l = 150, r = 80, t = 10, b = 70),
+    plot_bgcolor = "white",
+    paper_bgcolor = "white",
+    hoverlabel = list(
+      bgcolor = "rgba(255, 255, 255, 0.95)",
+      bordercolor = "#0032A0",
+      font = list(size = 13, color = "black"),
+      align = "left"
+    ),
+    annotations = list(
+      list(
+        text = "Peer group: DePaul-selected institutions + Big East conference members | Data: Fall 2022 cohort | Source: IPEDS",
+        xref = "paper",
+        yref = "paper",
+        x = 0.5,
+        y = -0.08,
+        xanchor = "center",
+        showarrow = FALSE,
+        font = list(size = 9, color = "#666")
+      )
+    )
+  ) %>%
+  config(displayModeBar = TRUE, displaylogo = FALSE)
+
+fig_retention
+```
+
+### Column {width="30%"}
+
+::: {.card title="Retention & Graduation Analysis"}
+
+**DePaul's Performance**
+
+- **Retention Rank:** `r depaul_rank_retention` of `r nrow(retention_data)`
+- **1st-2nd Year Retention:** `r depaul_retention`%
+- **6-Year Graduation:** `r depaul_grad_6yr`%
+- **4-Year Graduation:** `r depaul_grad_4yr`%
+
+**Peer Comparison**
+
+- **Peer Median Retention:** `r median_retention`%
+- **Peer Median 6-Year Grad:** `r median_grad_6yr`%
+- **Range:** `r min_retention`% - `r max_retention`%
+- **DePaul Percentile:** `r depaul_percentile_retention`th
+
+**Context**
+
+DePaul's retention rate is `r ifelse(pct_diff_retention >= 0, paste0(abs(pct_diff_retention), "% above"), paste0(abs(pct_diff_retention), "% below"))` the peer median. The 6-year graduation rate of `r depaul_grad_6yr`% is `r ifelse(pct_diff_grad >= 0, paste0(abs(pct_diff_grad), "% above"), paste0(abs(pct_diff_grad), "% below"))` the peer median of `r median_grad_6yr`%.
+
+These metrics reflect the Fall 2022 cohort for retention and 2017 cohort for graduation rates.
+
+---
+
+::: {style="font-size: 0.85em; color: #666;"}
+*Peer group includes DePaul-selected institutions plus Big East conference members*
+
+*Source: IPEDS • Retention: Fall 2022 cohort • Graduation: 2017 cohort*
+:::
+
+:::

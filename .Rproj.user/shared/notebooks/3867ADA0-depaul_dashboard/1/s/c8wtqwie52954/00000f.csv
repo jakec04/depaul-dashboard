@@ -1,0 +1,11 @@
+"0","# Source the visualization script to generate plots and get data"
+"0","source(""depaul_visualization.R"")"
+"2","G1;H1;Errorh in file(filename, ""r"", encoding = encoding) : 
+  cannot open the connection
+Error during wrapup: not that many frames on the stack
+Error: no more error handlers available (recursive errors?); invoking 'abort' restart
+g"
+"0","# The script creates these outputs:"
+"0","# - tuition_data: dataframe with all institution tuition data"
+"0","# - depaul_rank, depaul_tuition, depaul_percentile: DePaul metrics"
+"0","# - median_tuition, min_tuition, max_tuition: summary statistics"

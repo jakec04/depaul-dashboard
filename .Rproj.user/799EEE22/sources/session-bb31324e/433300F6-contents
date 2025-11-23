@@ -1,0 +1,265 @@
+---
+title: "How DePaul Stacks Up"
+format: 
+  dashboard:
+    theme: cosmo
+    css: custom.css
+---
+
+```{css}
+/* DePaul blue header with white text */
+.navbar {
+  background-color: #0032A0 !important;
+}
+
+.navbar-brand {
+  color: white !important;
+  font-weight: 600;
+}
+
+.navbar .navbar-title {
+  color: white !important;
+}
+
+/* Optimize value boxes for big numbers without icons */
+.valuebox {
+  padding: 20px 15px !important;
+}
+
+.valuebox-value {
+  font-size: 2.5rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}
+
+.valuebox-title {
+  font-size: 0.9rem !important;
+  margin-bottom: 8px !important;
+}
+```
+
+```{r setup, include=FALSE}
+library(knitr)
+library(plotly)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load-data}
+# Set the path to your CSV file
+csv_path <- "/Users/jakecox/Downloads/compare-institutions-2025-11-21-17-50.xlsx - Student Charges.csv"
+
+# Read header row separately to get institution names
+header_row <- read.csv(csv_path,
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+# Get institution names (starting from column 4)
+institutions <- as.character(header_row[1, 4:ncol(header_row)])
+institutions <- institutions[institutions != ""]
+
+# Read the data
+data <- read.csv(csv_path, 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+# Extract tuition values from row 24 (undergraduate, in-state, 2024-25)
+tuition_values <- as.numeric(data[24, 4:ncol(data)])
+
+# Trim to match institutions length
+if(length(tuition_values) > length(institutions)) {
+  tuition_values <- tuition_values[1:length(institutions)]
+}
+
+# Create a clean dataset
+tuition_data <- data.frame(
+  institution = institutions,
+  tuition = tuition_values,
+  stringsAsFactors = FALSE
+)
+
+# Remove NA values and identify DePaul
+tuition_data <- tuition_data[!is.na(tuition_data$tuition), ]
+tuition_data$is_depaul <- grepl("DePaul", tuition_data$institution, ignore.case = TRUE)
+
+# Sort by tuition ASCENDING (lowest to highest) - lower is better!
+tuition_data <- tuition_data[order(tuition_data$tuition), ]
+tuition_data$rank <- 1:nrow(tuition_data)
+
+# Clean institution names
+tuition_data$institution_clean <- gsub("\\.", " ", tuition_data$institution)
+
+# Get DePaul's information
+depaul_rank <- tuition_data$rank[tuition_data$is_depaul]
+depaul_tuition <- tuition_data$tuition[tuition_data$is_depaul]
+depaul_percentile <- round((depaul_rank / nrow(tuition_data)) * 100)
+
+# Summary statistics
+median_tuition <- median(tuition_data$tuition)
+min_tuition <- min(tuition_data$tuition)
+max_tuition <- max(tuition_data$tuition)
+q1_tuition <- quantile(tuition_data$tuition, 0.25)
+q3_tuition <- quantile(tuition_data$tuition, 0.75)
+
+# Calculate percentage difference
+pct_diff <- round(((depaul_tuition - median_tuition) / median_tuition) * 100, 1)
+
+# Colors
+depaul_color <- "#0032A0"
+peer_color <- "#8C8C8C"
+tuition_data$color <- ifelse(tuition_data$is_depaul, depaul_color, peer_color)
+```
+
+# Tuition Comparison
+
+## Row {height="20%"}
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Affordability Rank"
+list(
+  color = "success",
+  value = paste(depaul_rank, "of", nrow(tuition_data))
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "DePaul Tuition"
+list(
+  color = "info",
+  value = paste0("$", format(depaul_tuition, big.mark=","))
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Below Median"
+list(
+  color = "success",
+  value = paste0("$", format(abs(depaul_tuition - median_tuition), big.mark=","))
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Percentile"
+list(
+  color = "success",
+  value = paste0(depaul_percentile, "th")
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Peer Median"
+list(
+  color = "light",
+  value = paste0("$", format(median_tuition, big.mark=","))
+)
+```
+
+## Row {height="80%"}
+
+### Column {width="70%"}
+
+```{r}
+#| title: "DePaul vs. Peer Institutions - Undergraduate Tuition (2024-25)"
+#| padding: 0px
+
+# Note about peer group composition
+peer_group_note <- "Peer group includes DePaul-selected institutions plus Big East conference members"
+
+# Reverse order for display (highest at top)
+tuition_data_display <- tuition_data[nrow(tuition_data):1, ]
+
+# Create interactive plotly chart for all institutions
+fig <- plot_ly(
+  data = tuition_data_display,
+  y = ~institution_clean,
+  x = ~tuition,
+  type = 'bar',
+  orientation = 'h',
+  marker = list(color = ~color),
+  text = ~paste0("$", format(tuition, big.mark=",")),
+  textposition = 'outside',
+  textfont = list(size = 10),
+  hovertemplate = paste(
+    '<b>%{y}</b><br>',
+    'Tuition: <b>$%{x:,.0f}</b><br>',
+    'Affordability Rank: <b>%{customdata[0]} of ', nrow(tuition_data), '</b><br>',
+    '(Lower rank = more affordable)',
+    '<extra></extra>'
+  ),
+  customdata = ~cbind(rank)
+) %>%
+  layout(
+    xaxis = list(
+      title = "Annual Tuition & Fees ($)",
+      tickformat = "$,.0f",
+      showgrid = TRUE,
+      gridcolor = "#f0f0f0"
+    ),
+    yaxis = list(
+      title = "",
+      categoryorder = "array",
+      categoryarray = ~institution_clean
+    ),
+    showlegend = FALSE,
+    margin = list(l = 150, r = 80, t = 10, b = 70),
+    plot_bgcolor = "white",
+    paper_bgcolor = "white",
+    annotations = list(
+      list(
+        text = "Peer group: DePaul-selected institutions + Big East conference members | Source: IPEDS • AY 2024-25",
+        xref = "paper",
+        yref = "paper",
+        x = 0.5,
+        y = -0.08,
+        xanchor = "center",
+        showarrow = FALSE,
+        font = list(size = 9, color = "#666")
+      )
+    )
+  ) %>%
+  config(displayModeBar = TRUE, displaylogo = FALSE)
+
+fig
+```
+
+### Column {width="30%"}
+
+::: {.card title="Tuition Analysis"}
+
+**DePaul's Position**
+
+- **Affordability Rank:** `r depaul_rank` of `r nrow(tuition_data)` (2nd most affordable)
+- **Tuition:** $`r format(depaul_tuition, big.mark=",")`
+- **Below Median:** $`r format(abs(depaul_tuition - median_tuition), big.mark=",")` (`r abs(pct_diff)`%)
+
+**Peer Comparison**
+
+- **Peer Median:** $`r format(median_tuition, big.mark=",")`
+- **Range:** $`r format(min_tuition, big.mark=",")` - $`r format(max_tuition, big.mark=",")`
+- **DePaul Percentile:** `r depaul_percentile`th
+
+**Value Proposition**
+
+DePaul is the **2nd most affordable** among 26 peer institutions, offering $`r format(abs(depaul_tuition - median_tuition), big.mark=",")` in savings compared to the median while maintaining comparable quality and urban access.
+
+---
+
+::: {style="font-size: 0.85em; color: #666;"}
+*Peer group includes DePaul-selected institutions plus Big East conference members*
+
+*Source: IPEDS • AY 2024-25 • In-state undergraduate tuition & fees*
+:::
+
+:::

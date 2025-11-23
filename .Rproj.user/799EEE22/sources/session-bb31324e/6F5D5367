@@ -1,0 +1,32 @@
+{
+    "id": "6F5D5367",
+    "path": "~/rstudio/990-analysis/dashboard.qmd",
+    "project_path": "dashboard.qmd",
+    "type": "quarto_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1763766286416.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "736,21",
+        "scrollLine": "498",
+        "docOutlineVisible": "0",
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "18877:12585",
+        "chunk_output_type": "console"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1763785051,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1763785051781,
+    "read_only": false,
+    "read_only_alternatives": []
+}

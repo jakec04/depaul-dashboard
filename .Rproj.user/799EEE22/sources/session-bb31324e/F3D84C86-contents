@@ -1,0 +1,284 @@
+---
+title: "DePaul University Tuition Analysis"
+format: 
+  dashboard:
+    theme: cosmo
+    orientation: columns
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width=10, fig.height=7)
+```
+
+```{r load-data}
+# Set the path to your CSV file
+csv_path <- "/Users/jakecox/Downloads/compare-institutions-2025-11-21-17-50.xlsx - Student Charges.csv"
+
+# Read header row separately to get institution names
+header_row <- read.csv(csv_path,
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+# Get institution names (starting from column 4)
+institutions <- as.character(header_row[1, 4:ncol(header_row)])
+institutions <- institutions[institutions != ""]
+
+# Read the data
+data <- read.csv(csv_path, 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+# Extract tuition values from row 24 (undergraduate, in-state, 2024-25)
+tuition_values <- as.numeric(data[24, 4:ncol(data)])
+
+# Trim to match institutions length
+if(length(tuition_values) > length(institutions)) {
+  tuition_values <- tuition_values[1:length(institutions)]
+}
+
+# Create a clean dataset
+tuition_data <- data.frame(
+  institution = institutions,
+  tuition = tuition_values,
+  stringsAsFactors = FALSE
+)
+
+# Remove NA values and identify DePaul
+tuition_data <- tuition_data[!is.na(tuition_data$tuition), ]
+tuition_data$is_depaul <- grepl("DePaul", tuition_data$institution, ignore.case = TRUE)
+
+# Sort by tuition and add rank
+tuition_data <- tuition_data[order(-tuition_data$tuition), ]
+tuition_data$rank <- 1:nrow(tuition_data)
+
+# Get DePaul's information
+depaul_rank <- tuition_data$rank[tuition_data$is_depaul]
+depaul_tuition <- tuition_data$tuition[tuition_data$is_depaul]
+depaul_percentile <- round((sum(tuition_data$tuition < depaul_tuition) / (nrow(tuition_data) - 1)) * 100)
+
+# Summary statistics
+median_tuition <- median(tuition_data$tuition)
+min_tuition <- min(tuition_data$tuition)
+max_tuition <- max(tuition_data$tuition)
+q1_tuition <- quantile(tuition_data$tuition, 0.25)
+q3_tuition <- quantile(tuition_data$tuition, 0.75)
+
+# Calculate percentage difference
+pct_diff <- round(((depaul_tuition - median_tuition) / median_tuition) * 100, 1)
+
+# Colors
+depaul_color <- "#0032A0"
+peer_color <- "#8C8C8C"
+bar_colors <- ifelse(tuition_data$is_depaul, depaul_color, peer_color)
+```
+
+# Overview
+
+## Column {width=25%}
+
+### Row {height=25%}
+
+```{r}
+#| content: valuebox
+#| title: "DePaul Ranking"
+list(
+  icon = "trophy",
+  color = "primary",
+  value = paste(depaul_rank, "of", nrow(tuition_data))
+)
+```
+
+### Row {height=25%}
+
+```{r}
+#| content: valuebox
+#| title: "DePaul Tuition"
+list(
+  icon = "cash-coin",
+  color = "info",
+  value = paste0("$", format(depaul_tuition, big.mark=","))
+)
+```
+
+### Row {height=25%}
+
+```{r}
+#| content: valuebox
+#| title: "vs. Median"
+list(
+  icon = if(pct_diff < 0) "arrow-down" else "arrow-up",
+  color = if(pct_diff < 0) "success" else "warning",
+  value = paste0(ifelse(pct_diff < 0, "-", "+"), "$", format(abs(depaul_tuition - median_tuition), big.mark=","))
+)
+```
+
+### Row {height=25%}
+
+```{r}
+#| content: valuebox
+#| title: "Percentile"
+list(
+  icon = "bar-chart",
+  color = "success",
+  value = paste0(depaul_percentile, "th")
+)
+```
+
+## Column {width=75%}
+
+### Row {height=100%}
+
+```{r}
+#| title: "DePaul vs. Peer Institutions"
+
+# Select top and bottom institutions plus DePaul
+top_n <- 6
+bottom_n <- 6
+top_indices <- 1:min(top_n, nrow(tuition_data))
+bottom_indices <- max(1, nrow(tuition_data) - bottom_n + 1):nrow(tuition_data)
+depaul_index <- which(tuition_data$is_depaul)
+display_indices <- sort(unique(c(top_indices, bottom_indices, depaul_index)))
+
+display_data <- tuition_data[display_indices, ]
+display_colors <- bar_colors[display_indices]
+display_names <- gsub("\\.", " ", display_data$institution)
+
+par(mar=c(5, 10, 3, 2))
+
+bp <- barplot(display_data$tuition,
+        names.arg = display_names,
+        horiz = TRUE,
+        las = 1,
+        col = display_colors,
+        border = NA,
+        xlab = "Annual Tuition & Fees ($)",
+        cex.names = 0.8,
+        cex.axis = 0.9,
+        xlim = c(0, max(display_data$tuition) * 1.2))
+
+text(display_data$tuition + max(display_data$tuition) * 0.02,
+     bp,
+     labels = paste0("$", format(display_data$tuition, big.mark=",", scientific=FALSE)),
+     cex = 0.75,
+     pos = 4)
+
+# Add ellipsis if there's a gap
+if (length(display_indices) < nrow(tuition_data)) {
+  gap_start <- max(which(display_indices <= top_n))
+  gap_end <- min(which(display_indices >= nrow(tuition_data) - bottom_n + 1))
+  if(gap_end - gap_start > 1) {
+    middle_pos <- (bp[gap_start] + bp[gap_end]) / 2
+    text(max(display_data$tuition) * 0.4, middle_pos,
+         labels = "⋮", cex = 2.5, col = "gray50")
+  }
+}
+
+mtext("Source: IPEDS • Academic Year 2024-25", side=1, line=4, adj=1, cex=0.7, col="gray40")
+```
+
+# Full Comparison
+
+## Column {width=100%}
+
+### Row {height=100%}
+
+```{r}
+#| title: "All 26 Peer Institutions"
+
+par(mar=c(5, 12, 3, 2))
+
+display_names_full <- gsub("\\.", " ", tuition_data$institution)
+
+bp2 <- barplot(tuition_data$tuition, 
+        names.arg = display_names_full,
+        horiz = TRUE,
+        las = 1,
+        col = bar_colors,
+        border = NA,
+        xlab = "Annual Tuition & Fees ($)",
+        cex.names = 0.7,
+        cex.axis = 0.9,
+        xlim = c(0, max(tuition_data$tuition) * 1.2))
+
+text(tuition_data$tuition + max(tuition_data$tuition) * 0.02, 
+     bp2,
+     labels = paste0("$", format(tuition_data$tuition, big.mark=",", scientific=FALSE)),
+     cex = 0.7,
+     pos = 4)
+
+mtext("Source: IPEDS", side=1, line=4, adj=1, cex=0.7, col="gray40")
+```
+
+# Data & Insights
+
+## Column {width=50%}
+
+### Row {height=60%}
+
+```{r}
+#| title: "Full Data Comparison"
+
+# Create a formatted table
+table_data <- tuition_data[, c("institution", "tuition", "rank")]
+table_data$institution <- gsub("\\.", " ", table_data$institution)
+table_data$tuition_formatted <- paste0("$", format(table_data$tuition, big.mark=","))
+table_data <- table_data[, c("institution", "tuition_formatted", "rank")]
+colnames(table_data) <- c("Institution", "Tuition & Fees (2024-25)", "Rank")
+
+kable(table_data, row.names = FALSE, align = c("l", "r", "c"))
+```
+
+### Row {height=40%}
+
+```{r}
+#| title: "Statistical Summary"
+
+summary_df <- data.frame(
+  Metric = c("Minimum", "1st Quartile", "Median", "Mean", "3rd Quartile", "Maximum", "DePaul"),
+  Value = c(
+    paste0("$", format(min_tuition, big.mark=",")),
+    paste0("$", format(q1_tuition, big.mark=",")),
+    paste0("$", format(median_tuition, big.mark=",")),
+    paste0("$", format(round(mean(tuition_data$tuition)), big.mark=",")),
+    paste0("$", format(q3_tuition, big.mark=",")),
+    paste0("$", format(max_tuition, big.mark=",")),
+    paste0("$", format(depaul_tuition, big.mark=","))
+  )
+)
+
+kable(summary_df, row.names = FALSE, align = c("l", "r"))
+```
+
+## Column {width=50%}
+
+### Row {height=100%}
+
+```{r}
+#| title: "Key Findings"
+
+cat("### DePaul's Competitive Position\n\n")
+cat(sprintf("- DePaul ranks **%d** out of **%d** peer institutions\n", depaul_rank, nrow(tuition_data)))
+cat(sprintf("- Tuition is **$%s** (**%.1f%%**) **%s** the median\n", 
+            format(abs(depaul_tuition - median_tuition), big.mark=","),
+            abs(pct_diff),
+            ifelse(pct_diff < 0, "below", "above")))
+cat(sprintf("- Positioned in the **%dth percentile**\n\n", depaul_percentile))
+
+cat("### Peer Landscape\n\n")
+cat(sprintf("- **Median tuition:** $%s\n", format(median_tuition, big.mark=",")))
+cat(sprintf("- **Range:** $%s to $%s\n", 
+            format(min_tuition, big.mark=","),
+            format(max_tuition, big.mark=",")))
+cat(sprintf("- **Interquartile range:** $%s to $%s\n\n", 
+            format(q1_tuition, big.mark=","),
+            format(q3_tuition, big.mark=",")))
+
+cat("### Value Proposition\n\n")
+cat("DePaul offers a **strong value proposition** relative to its peer institutions. ")
+cat("As the 3rd most affordable option among 26 comparable universities, ")
+cat("DePaul provides access to quality urban education at a competitive price point.\n\n")
+
+cat("---\n\n")
+cat("*Data Source: IPEDS (Integrated Postsecondary Education Data System)*\n\n")
+cat("*Academic Year: 2024-25*\n\n")
+cat("*Note: Tuition figures represent in-state, full-time undergraduate tuition and required fees.*")
+```

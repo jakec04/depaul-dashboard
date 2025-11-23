@@ -1,0 +1,753 @@
+---
+title: "DePaul University Financial Analysis"
+subtitle: "Comparative Analysis with Peer Institutions"
+format: 
+  dashboard:
+    theme: cosmo
+    orientation: rows
+    expandable: true
+    scrolling: false
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: setup
+#| echo: false
+#| warning: false
+#| message: false
+
+library(dplyr)
+library(readr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(plotly)
+
+# Load data
+peer_wide <- read_csv("depaul_peer_wide_metrics.csv", show_col_types = FALSE)
+
+# Ensure correct column types
+peer_wide <- peer_wide %>%
+  mutate(
+    Type = factor(Type),
+    School = as.character(School)
+  )
+
+# Verify School column exists
+if (!"School" %in% names(peer_wide)) {
+  stop("Expected a 'School' column in depaul_peer_wide_metrics.csv")
+}
+
+# Split DePaul vs peers
+depaul <- peer_wide %>% filter(School == "DePaul University")
+peers  <- peer_wide %>% filter(School != "DePaul University")
+```
+
+# Revenue Analysis
+
+## Row {height="10%"}
+
+DePaul University's revenue structure reveals how the institution finances its operations compared to peer universities. This analysis examines five core revenue sources: tuition and fees, government grants, private gifts, investment returns, and other revenue. Understanding these revenue patterns helps identify DePaul's financial dependencies and diversification relative to similar institutions.
+
+## Row {height="60%"}
+
+### Column
+
+```{r}
+#| title: "Revenue Mix: Percentage of Core Revenue"
+#| echo: false
+
+# Revenue mix data preparation
+rev_vars <- c(
+  "Tuition_pct_rev",
+  "GovGrants_pct_rev",
+  "PrivateGifts_pct_rev",
+  "InvReturn_pct_rev",
+  "Other_pct_rev"
+)
+
+rev_labels <- c(
+  Tuition_pct_rev       = "Tuition & fees",
+  GovGrants_pct_rev     = "Government grants",
+  PrivateGifts_pct_rev  = "Private gifts",
+  InvReturn_pct_rev     = "Investment return",
+  Other_pct_rev         = "Other core revenue"
+)
+
+# Peer averages
+peer_rev_avg <- peers %>%
+  select(School, Type, all_of(rev_vars)) %>%
+  pivot_longer(cols = all_of(rev_vars),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  group_by(Metric) %>%
+  summarise(Peer_Avg = mean(Value, na.rm = TRUE), .groups = "drop")
+
+# DePaul
+depaul_rev <- depaul %>%
+  select(School, all_of(rev_vars)) %>%
+  pivot_longer(cols = all_of(rev_vars),
+               names_to = "Metric",
+               values_to = "DePaul_Value")
+
+# Join
+rev_compare <- depaul_rev %>%
+  left_join(peer_rev_avg, by = "Metric") %>%
+  mutate(Metric_Label = recode(Metric, !!!rev_labels))
+
+# Create plot data
+rev_plot_data <- rev_compare %>%
+  pivot_longer(cols = c("DePaul_Value", "Peer_Avg"),
+               names_to = "Group",
+               values_to = "Value") %>%
+  mutate(
+    Group = recode(Group,
+                   DePaul_Value = "DePaul",
+                   Peer_Avg = "Peer Average")
+  )
+
+# Create plotly chart
+plot_ly(
+  rev_plot_data,
+  x = ~Value,
+  y = ~reorder(Metric_Label, Value),
+  color = ~Group,
+  colors = c("DePaul" = "#0047AB", "Peer Average" = "#87CEEB"),
+  type = "bar",
+  orientation = "h",
+  hovertemplate = paste(
+    "<b>%{y}</b><br>",
+    "%{x:.1f}%<br>",
+    "<extra></extra>"
+  )
+) %>%
+  layout(
+    xaxis = list(title = "Percent of core revenue"),
+    yaxis = list(title = ""),
+    barmode = "group",
+    showlegend = TRUE,
+    legend = list(orientation = "h", y = -0.15)
+  )
+```
+
+### Column
+
+```{r}
+#| title: "Revenue Per Student (FTE)"
+#| echo: false
+
+# Revenue per FTE data preparation
+revft_vars <- c(
+  "Tuition_rev_perFTE",
+  "GovGrants_rev_perFTE",
+  "PrivateGifts_rev_perFTE",
+  "InvReturn_rev_perFTE",
+  "Other_rev_perFTE"
+)
+
+revft_labels <- c(
+  Tuition_rev_perFTE      = "Tuition & fees",
+  GovGrants_rev_perFTE    = "Gov grants",
+  PrivateGifts_rev_perFTE = "Private gifts",
+  InvReturn_rev_perFTE    = "Investment return",
+  Other_rev_perFTE        = "Other core revenue"
+)
+
+peer_revft_avg <- peers %>%
+  select(School, Type, all_of(revft_vars)) %>%
+  pivot_longer(cols = all_of(revft_vars),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  group_by(Metric) %>%
+  summarise(Peer_Avg = mean(Value, na.rm = TRUE), .groups = "drop")
+
+depaul_revft <- depaul %>%
+  select(School, all_of(revft_vars)) %>%
+  pivot_longer(cols = all_of(revft_vars),
+               names_to = "Metric",
+               values_to = "DePaul_Value")
+
+revft_compare <- depaul_revft %>%
+  left_join(peer_revft_avg, by = "Metric") %>%
+  mutate(Metric_Label = recode(Metric, !!!revft_labels))
+
+# Create plot data
+revft_plot_data <- revft_compare %>%
+  pivot_longer(cols = c("DePaul_Value", "Peer_Avg"),
+               names_to = "Group",
+               values_to = "Value") %>%
+  mutate(
+    Group = recode(Group,
+                   DePaul_Value = "DePaul",
+                   Peer_Avg = "Peer Average")
+  )
+
+# Create plotly chart
+plot_ly(
+  revft_plot_data,
+  x = ~Value,
+  y = ~reorder(Metric_Label, Value),
+  color = ~Group,
+  colors = c("DePaul" = "#0047AB", "Peer Average" = "#87CEEB"),
+  type = "bar",
+  orientation = "h",
+  hovertemplate = paste(
+    "<b>%{y}</b><br>",
+    "$%{x:,.0f}<br>",
+    "<extra></extra>"
+  )
+) %>%
+  layout(
+    xaxis = list(title = "Core revenues per FTE (USD)"),
+    yaxis = list(title = ""),
+    barmode = "group",
+    showlegend = TRUE,
+    legend = list(orientation = "h", y = -0.15)
+  )
+```
+
+## Row {height="30%"}
+
+### Column
+
+```{r}
+#| title: "Tuition Dependency Distribution"
+#| echo: false
+
+df <- peer_wide %>%
+  transmute(
+    School = School,
+    Tuition_pct_rev = as.numeric(Tuition_pct_rev),
+    IsDePaul = ifelse(School == "DePaul University", "DePaul", "Peer")
+  ) %>%
+  filter(is.finite(Tuition_pct_rev))
+
+plot_ly(df, x = ~Tuition_pct_rev, color = ~IsDePaul,
+        colors = c("DePaul" = "#0047AB", "Peer" = "#87CEEB"),
+        type = "histogram", 
+        nbinsx = 15,
+        hovertemplate = paste(
+          "Range: %{x}<br>",
+          "Count: %{y}<br>",
+          "<extra></extra>"
+        )) %>%
+  layout(
+    xaxis = list(title = "Tuition as % of core revenue"),
+    yaxis = list(title = "Number of institutions"),
+    barmode = "overlay",
+    showlegend = TRUE
+  )
+```
+
+### Column
+
+```{r}
+#| title: "Investment Return Distribution"
+#| echo: false
+
+df <- peer_wide %>%
+  transmute(
+    School = School,
+    InvReturn_pct_rev = as.numeric(InvReturn_pct_rev),
+    IsDePaul = ifelse(School == "DePaul University", "DePaul", "Peer")
+  ) %>%
+  filter(is.finite(InvReturn_pct_rev))
+
+plot_ly(df, x = ~InvReturn_pct_rev, color = ~IsDePaul,
+        colors = c("DePaul" = "#0047AB", "Peer" = "#87CEEB"),
+        type = "histogram", 
+        nbinsx = 15,
+        hovertemplate = paste(
+          "Range: %{x}<br>",
+          "Count: %{y}<br>",
+          "<extra></extra>"
+        )) %>%
+  layout(
+    xaxis = list(title = "Investment return as % of core revenue"),
+    yaxis = list(title = "Number of institutions"),
+    barmode = "overlay",
+    showlegend = TRUE
+  )
+```
+
+# Expense Analysis
+
+## Row {height="10%"}
+
+How institutions allocate their budgets reflects their priorities and operational models. This section examines expense patterns across seven categories: instruction, research, public service, academic support, student services, institutional support (administration), and other expenses. Comparing DePaul's spending patterns with peer institutions reveals differences in mission focus and resource allocation.
+
+## Row {height="60%"}
+
+### Column
+
+```{r}
+#| title: "Expense Mix: Percentage of Core Expenses"
+#| echo: false
+
+# Expense mix data preparation
+exp_vars <- c(
+  "Instruction_pct_exp",
+  "Research_pct_exp",
+  "PublicService_pct_exp",
+  "AcadSupport_pct_exp",
+  "StudServices_pct_exp",
+  "InstSupport_pct_exp",
+  "Other_pct_exp"
+)
+
+exp_labels <- c(
+  Instruction_pct_exp   = "Instruction",
+  Research_pct_exp      = "Research",
+  PublicService_pct_exp = "Public service",
+  AcadSupport_pct_exp   = "Academic support",
+  StudServices_pct_exp  = "Student services",
+  InstSupport_pct_exp   = "Institutional support (admin)",
+  Other_pct_exp         = "Other core expenses"
+)
+
+peer_exp_avg <- peers %>%
+  select(School, Type, all_of(exp_vars)) %>%
+  pivot_longer(cols = all_of(exp_vars),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  group_by(Metric) %>%
+  summarise(Peer_Avg = mean(Value, na.rm = TRUE), .groups = "drop")
+
+depaul_exp <- depaul %>%
+  select(School, all_of(exp_vars)) %>%
+  pivot_longer(cols = all_of(exp_vars),
+               names_to = "Metric",
+               values_to = "DePaul_Value")
+
+exp_compare <- depaul_exp %>%
+  left_join(peer_exp_avg, by = "Metric") %>%
+  mutate(Metric_Label = recode(Metric, !!!exp_labels))
+
+# Create plot data
+exp_plot_data <- exp_compare %>%
+  pivot_longer(cols = c("DePaul_Value", "Peer_Avg"),
+               names_to = "Group",
+               values_to = "Value") %>%
+  mutate(
+    Group = recode(Group,
+                   DePaul_Value = "DePaul",
+                   Peer_Avg = "Peer Average")
+  )
+
+# Create plotly chart
+plot_ly(
+  exp_plot_data,
+  x = ~Value,
+  y = ~reorder(Metric_Label, Value),
+  color = ~Group,
+  colors = c("DePaul" = "#C8102E", "Peer Average" = "#FFB6C1"),
+  type = "bar",
+  orientation = "h",
+  hovertemplate = paste(
+    "<b>%{y}</b><br>",
+    "%{x:.1f}%<br>",
+    "<extra></extra>"
+  )
+) %>%
+  layout(
+    xaxis = list(title = "Percent of core expenses"),
+    yaxis = list(title = ""),
+    barmode = "group",
+    showlegend = TRUE,
+    legend = list(orientation = "h", y = -0.15)
+  )
+```
+
+### Column
+
+```{r}
+#| title: "Expenses Per Student (FTE)"
+#| echo: false
+
+# Expense per FTE data preparation
+expft_vars <- c(
+  "Instruction_exp_perFTE",
+  "Research_exp_perFTE",
+  "PublicService_exp_perFTE",
+  "AcadSupport_exp_perFTE",
+  "StudServices_exp_perFTE",
+  "InstSupport_exp_perFTE",
+  "Other_exp_perFTE"
+)
+
+expft_labels <- c(
+  Instruction_exp_perFTE   = "Instruction",
+  Research_exp_perFTE      = "Research",
+  PublicService_exp_perFTE = "Public service",
+  AcadSupport_exp_perFTE   = "Academic support",
+  StudServices_exp_perFTE  = "Student services",
+  InstSupport_exp_perFTE   = "Institutional support (admin)",
+  Other_exp_perFTE         = "Other core expenses"
+)
+
+peer_expft_avg <- peers %>%
+  select(School, Type, all_of(expft_vars)) %>%
+  pivot_longer(cols = all_of(expft_vars),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  group_by(Metric) %>%
+  summarise(Peer_Avg = mean(Value, na.rm = TRUE), .groups = "drop")
+
+depaul_expft <- depaul %>%
+  select(School, all_of(expft_vars)) %>%
+  pivot_longer(cols = all_of(expft_vars),
+               names_to = "Metric",
+               values_to = "DePaul_Value")
+
+expft_compare <- depaul_expft %>%
+  left_join(peer_expft_avg, by = "Metric") %>%
+  mutate(Metric_Label = recode(Metric, !!!expft_labels))
+
+# Create plot data
+expft_plot_data <- expft_compare %>%
+  pivot_longer(cols = c("DePaul_Value", "Peer_Avg"),
+               names_to = "Group",
+               values_to = "Value") %>%
+  mutate(
+    Group = recode(Group,
+                   DePaul_Value = "DePaul",
+                   Peer_Avg = "Peer Average")
+  )
+
+# Create plotly chart
+plot_ly(
+  expft_plot_data,
+  x = ~Value,
+  y = ~reorder(Metric_Label, Value),
+  color = ~Group,
+  colors = c("DePaul" = "#C8102E", "Peer Average" = "#FFB6C1"),
+  type = "bar",
+  orientation = "h",
+  hovertemplate = paste(
+    "<b>%{y}</b><br>",
+    "$%{x:,.0f}<br>",
+    "<extra></extra>"
+  )
+) %>%
+  layout(
+    xaxis = list(title = "Core expenses per FTE (USD)"),
+    yaxis = list(title = ""),
+    barmode = "group",
+    showlegend = TRUE,
+    legend = list(orientation = "h", y = -0.15)
+  )
+```
+
+## Row {height="30%"}
+
+### Column
+
+```{r}
+#| title: "Instructional Spending Distribution"
+#| echo: false
+
+df <- peer_wide %>%
+  transmute(
+    School = School,
+    Instruction_pct_exp = as.numeric(Instruction_pct_exp),
+    IsDePaul = ifelse(School == "DePaul University", "DePaul", "Peer")
+  ) %>%
+  filter(is.finite(Instruction_pct_exp))
+
+plot_ly(df, x = ~Instruction_pct_exp, color = ~IsDePaul,
+        colors = c("DePaul" = "#C8102E", "Peer" = "#FFB6C1"),
+        type = "histogram", 
+        nbinsx = 15,
+        hovertemplate = paste(
+          "Range: %{x}<br>",
+          "Count: %{y}<br>",
+          "<extra></extra>"
+        )) %>%
+  layout(
+    xaxis = list(title = "Instruction as % of core expenses"),
+    yaxis = list(title = "Number of institutions"),
+    barmode = "overlay",
+    showlegend = TRUE
+  )
+```
+
+### Column
+
+```{r}
+#| title: "Administrative Spending Distribution"
+#| echo: false
+
+df <- peer_wide %>%
+  transmute(
+    School = School,
+    InstSupport_pct_exp = as.numeric(InstSupport_pct_exp),
+    IsDePaul = ifelse(School == "DePaul University", "DePaul", "Peer")
+  ) %>%
+  filter(is.finite(InstSupport_pct_exp))
+
+plot_ly(df, x = ~InstSupport_pct_exp, color = ~IsDePaul,
+        colors = c("DePaul" = "#C8102E", "Peer" = "#FFB6C1"),
+        type = "histogram", 
+        nbinsx = 15,
+        hovertemplate = paste(
+          "Range: %{x}<br>",
+          "Count: %{y}<br>",
+          "<extra></extra>"
+        )) %>%
+  layout(
+    xaxis = list(title = "Institutional support as % of core expenses"),
+    yaxis = list(title = "Number of institutions"),
+    barmode = "overlay",
+    showlegend = TRUE
+  )
+```
+
+# Key Metrics
+
+## Row {height="10%"}
+
+This section highlights the most significant differences between DePaul and its peer institutions across both revenue sources and expense categories. These headline metrics provide a snapshot of DePaul's financial position and operational priorities in comparison to similar universities.
+
+## Row {height="45%"}
+
+### Column
+
+```{r}
+#| title: "Revenue Comparison: Key Metrics"
+#| echo: false
+
+# Headline revenue metrics
+headline_rev_vars <- c(
+  "Tuition_pct_rev",
+  "InvReturn_pct_rev",
+  "PrivateGifts_pct_rev",
+  "GovGrants_pct_rev"
+)
+
+headline_rev_labels <- c(
+  Tuition_pct_rev       = "Tuition % of revenue",
+  InvReturn_pct_rev     = "Investment return % of revenue",
+  PrivateGifts_pct_rev  = "Private gifts % of revenue",
+  GovGrants_pct_rev     = "Gov grants % of revenue"
+)
+
+depaul_headline_rev <- depaul %>%
+  select(School, all_of(headline_rev_vars)) %>%
+  pivot_longer(cols = all_of(headline_rev_vars),
+               names_to = "Metric",
+               values_to = "DePaul")
+
+peer_headline_rev <- peers %>%
+  select(School, all_of(headline_rev_vars)) %>%
+  pivot_longer(cols = all_of(headline_rev_vars),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  group_by(Metric) %>%
+  summarise(Peer_Avg = mean(Value, na.rm = TRUE), .groups = "drop")
+
+headline_rev_compare <- depaul_headline_rev %>%
+  left_join(peer_headline_rev, by = "Metric") %>%
+  mutate(
+    Metric_Label = recode(Metric, !!!headline_rev_labels),
+    Difference = DePaul - Peer_Avg
+  )
+
+# Create comparison table
+plot_ly(
+  headline_rev_compare,
+  x = ~Difference,
+  y = ~reorder(Metric_Label, abs(Difference)),
+  type = "bar",
+  orientation = "h",
+  marker = list(
+    color = ~ifelse(Difference > 0, "#0047AB", "#C8102E")
+  ),
+  hovertemplate = paste(
+    "<b>%{y}</b><br>",
+    "DePaul: %{customdata[0]:.1f}%<br>",
+    "Peer Avg: %{customdata[1]:.1f}%<br>",
+    "Difference: %{x:.1f}pp<br>",
+    "<extra></extra>"
+  ),
+  customdata = ~cbind(DePaul, Peer_Avg)
+) %>%
+  layout(
+    xaxis = list(title = "Percentage point difference (DePaul - Peer Avg)"),
+    yaxis = list(title = ""),
+    showlegend = FALSE
+  )
+```
+
+### Column
+
+```{r}
+#| title: "Expense Comparison: Key Metrics"
+#| echo: false
+
+# Headline expense metrics
+headline_exp_vars <- c(
+  "Instruction_pct_exp",
+  "InstSupport_pct_exp",
+  "Research_pct_exp",
+  "StudServices_pct_exp"
+)
+
+headline_exp_labels <- c(
+  Instruction_pct_exp   = "Instruction % of expenses",
+  InstSupport_pct_exp   = "Institutional support % of expenses",
+  Research_pct_exp      = "Research % of expenses",
+  StudServices_pct_exp  = "Student services % of expenses"
+)
+
+depaul_headline_exp <- depaul %>%
+  select(School, all_of(headline_exp_vars)) %>%
+  pivot_longer(cols = all_of(headline_exp_vars),
+               names_to = "Metric",
+               values_to = "DePaul")
+
+peer_headline_exp <- peers %>%
+  select(School, all_of(headline_exp_vars)) %>%
+  pivot_longer(cols = all_of(headline_exp_vars),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  group_by(Metric) %>%
+  summarise(Peer_Avg = mean(Value, na.rm = TRUE), .groups = "drop")
+
+headline_exp_compare <- depaul_headline_exp %>%
+  left_join(peer_headline_exp, by = "Metric") %>%
+  mutate(
+    Metric_Label = recode(Metric, !!!headline_exp_labels),
+    Difference = DePaul - Peer_Avg
+  )
+
+# Create comparison table
+plot_ly(
+  headline_exp_compare,
+  x = ~Difference,
+  y = ~reorder(Metric_Label, abs(Difference)),
+  type = "bar",
+  orientation = "h",
+  marker = list(
+    color = ~ifelse(Difference > 0, "#0047AB", "#C8102E")
+  ),
+  hovertemplate = paste(
+    "<b>%{y}</b><br>",
+    "DePaul: %{customdata[0]:.1f}%<br>",
+    "Peer Avg: %{customdata[1]:.1f}%<br>",
+    "Difference: %{x:.1f}pp<br>",
+    "<extra></extra>"
+  ),
+  customdata = ~cbind(DePaul, Peer_Avg)
+) %>%
+  layout(
+    xaxis = list(title = "Percentage point difference (DePaul - Peer Avg)"),
+    yaxis = list(title = ""),
+    showlegend = FALSE
+  )
+```
+
+## Row {height="45%"}
+
+### Column {.tabset}
+
+```{r}
+#| title: "All Peer Institutions: Tuition Dependency"
+#| echo: false
+
+df_scatter <- peer_wide %>%
+  transmute(
+    School = School,
+    Tuition_pct_rev = as.numeric(Tuition_pct_rev),
+    InvReturn_pct_rev = as.numeric(InvReturn_pct_rev),
+    IsDePaul = ifelse(School == "DePaul University", "DePaul", "Peer")
+  ) %>%
+  filter(is.finite(Tuition_pct_rev) & is.finite(InvReturn_pct_rev))
+
+plot_ly(
+  df_scatter,
+  x = ~Tuition_pct_rev,
+  y = ~InvReturn_pct_rev,
+  color = ~IsDePaul,
+  colors = c("DePaul" = "#0047AB", "Peer" = "#CCCCCC"),
+  type = "scatter",
+  mode = "markers",
+  marker = list(size = 10),
+  text = ~School,
+  hovertemplate = paste(
+    "<b>%{text}</b><br>",
+    "Tuition: %{x:.1f}%<br>",
+    "Investment: %{y:.1f}%<br>",
+    "<extra></extra>"
+  )
+) %>%
+  layout(
+    xaxis = list(title = "Tuition as % of revenue"),
+    yaxis = list(title = "Investment return as % of revenue"),
+    showlegend = TRUE
+  )
+```
+
+```{r}
+#| title: "All Peer Institutions: Spending Priorities"
+#| echo: false
+
+df_scatter2 <- peer_wide %>%
+  transmute(
+    School = School,
+    Instruction_pct_exp = as.numeric(Instruction_pct_exp),
+    InstSupport_pct_exp = as.numeric(InstSupport_pct_exp),
+    IsDePaul = ifelse(School == "DePaul University", "DePaul", "Peer")
+  ) %>%
+  filter(is.finite(Instruction_pct_exp) & is.finite(InstSupport_pct_exp))
+
+plot_ly(
+  df_scatter2,
+  x = ~Instruction_pct_exp,
+  y = ~InstSupport_pct_exp,
+  color = ~IsDePaul,
+  colors = c("DePaul" = "#C8102E", "Peer" = "#CCCCCC"),
+  type = "scatter",
+  mode = "markers",
+  marker = list(size = 10),
+  text = ~School,
+  hovertemplate = paste(
+    "<b>%{text}</b><br>",
+    "Instruction: %{x:.1f}%<br>",
+    "Admin: %{y:.1f}%<br>",
+    "<extra></extra>"
+  )
+) %>%
+  layout(
+    xaxis = list(title = "Instruction as % of expenses"),
+    yaxis = list(title = "Institutional support as % of expenses"),
+    showlegend = TRUE
+  )
+```
+
+# Summary
+
+## Row {height="100%"}
+
+### Column
+
+This financial analysis compares DePaul University to a cohort of peer institutions across key revenue and expense metrics. The data reveals several important patterns in how DePaul finances its operations and allocates resources compared to similar universities.
+
+**Revenue Structure**
+
+DePaul demonstrates higher reliance on tuition and fees as a percentage of core revenue compared to peer institutions, while showing lower investment returns and private gift income. This revenue concentration suggests DePaul may be more vulnerable to enrollment fluctuations than peers with more diversified funding sources. On a per-student basis, revenue patterns show where DePaul generates more or less income per FTE compared to similar institutions.
+
+**Expense Allocation**
+
+The expense analysis reveals how DePaul prioritizes its budget relative to peers. Differences in instructional spending, research expenditures, and administrative costs indicate distinct operational models and mission emphases. The per-student expense metrics show whether DePaul invests more or less in specific areas compared to peer institutions, which may reflect different strategic priorities or efficiency levels.
+
+**Strategic Implications**
+
+The key metrics dashboard highlights the most significant differences between DePaul and peer averages. Positive differences indicate areas where DePaul allocates proportionally more resources or generates more revenue, while negative differences show areas of lower emphasis or income. The scatter plots reveal clustering patterns among peer institutions and position DePaul within this competitive landscape.
+
+Understanding these financial patterns helps contextualize DePaul's strategic position. Institutions with similar profiles face similar challenges and opportunities, while outliers may indicate unique missions, markets, or operational approaches. The dashboard provides a foundation for deeper questions about financial sustainability, strategic priorities, and competitive positioning within the higher education marketplace.
+
+**Data Considerations**
+
+Financial metrics represent a single snapshot in time and should be interpreted within the broader context of institutional mission, student demographics, geographic location, and strategic goals. Differences from peer averages are neither inherently positive nor negative but rather reflect distinct institutional characteristics and choices. This analysis provides a comparative framework for understanding DePaul's financial position relative to similar universities.

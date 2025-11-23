@@ -1,0 +1,248 @@
+# DePaul vs. Peer Institutions Visualization
+# For use in Quarto Dashboard - Corrected version
+
+# Read header row separately to get institution names
+header_row <- read.csv("/mnt/user-data/uploads/compare-institutions-2025-11-21-17-50_xlsx_-_Student_Charges.csv",
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+# Get institution names (starting from column 4)
+institutions <- as.character(header_row[1, 4:ncol(header_row)])
+institutions <- institutions[institutions != ""]
+
+# Read the data
+data <- read.csv("/mnt/user-data/uploads/compare-institutions-2025-11-21-17-50_xlsx_-_Student_Charges.csv", 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+# Row 24 contains: "Typical tuition and required fees for full-time students: Academic year 2024-25", "In-state", "Level of student - Undergraduate"
+# Extract tuition values from row 24 (undergraduate, in-state, 2024-25)
+tuition_values <- as.numeric(data[24, 4:ncol(data)])
+
+# Trim to match institutions length
+if(length(tuition_values) > length(institutions)) {
+  tuition_values <- tuition_values[1:length(institutions)]
+}
+
+# Create a clean dataset
+tuition_data <- data.frame(
+  institution = institutions,
+  tuition = tuition_values,
+  stringsAsFactors = FALSE
+)
+
+# Remove NA values
+tuition_data <- tuition_data[!is.na(tuition_data$tuition), ]
+
+# Identify DePaul
+tuition_data$is_depaul <- grepl("DePaul", tuition_data$institution, ignore.case = TRUE)
+
+cat("\nInstitutions found:", nrow(tuition_data), "\n")
+cat("DePaul found:", sum(tuition_data$is_depaul), "\n")
+if(sum(tuition_data$is_depaul) > 0) {
+  cat("DePaul name:", tuition_data$institution[tuition_data$is_depaul], "\n")
+}
+
+# Sort by tuition
+tuition_data <- tuition_data[order(-tuition_data$tuition), ]
+tuition_data$rank <- 1:nrow(tuition_data)
+
+# Get DePaul's information
+if(sum(tuition_data$is_depaul) > 0) {
+  depaul_rank <- tuition_data$rank[tuition_data$is_depaul]
+  depaul_tuition <- tuition_data$tuition[tuition_data$is_depaul]
+  depaul_percentile <- round((sum(tuition_data$tuition < depaul_tuition) / (nrow(tuition_data) - 1)) * 100)
+} else {
+  cat("\nWARNING: DePaul not found in the data!\n")
+  depaul_rank <- NA
+  depaul_tuition <- NA
+  depaul_percentile <- NA
+}
+
+# Summary statistics
+median_tuition <- median(tuition_data$tuition)
+min_tuition <- min(tuition_data$tuition)
+max_tuition <- max(tuition_data$tuition)
+q1_tuition <- quantile(tuition_data$tuition, 0.25)
+q3_tuition <- quantile(tuition_data$tuition, 0.75)
+
+# Print summary
+cat("\n=== DEPAUL VS. PEERS SUMMARY ===\n")
+if(!is.na(depaul_tuition)) {
+  cat(sprintf("DePaul Tuition: $%s\n", format(depaul_tuition, big.mark=",", scientific=FALSE)))
+}
+cat(sprintf("Peer Median: $%s\n", format(median_tuition, big.mark=",", scientific=FALSE)))
+cat(sprintf("Range: $%s - $%s\n", 
+            format(min_tuition, big.mark=",", scientific=FALSE),
+            format(max_tuition, big.mark=",", scientific=FALSE)))
+if(!is.na(depaul_rank)) {
+  cat(sprintf("DePaul Rank: %d of %d\n", depaul_rank, nrow(tuition_data)))
+  cat(sprintf("DePaul Percentile: %dth\n", depaul_percentile))
+  cat(sprintf("Difference from Median: $%s (%+.1f%%)\n", 
+              format(depaul_tuition - median_tuition, big.mark=",", scientific=FALSE),
+              ((depaul_tuition - median_tuition) / median_tuition) * 100))
+}
+
+# Colors
+depaul_color <- "#0032A0"  # DePaul blue
+peer_color <- "#8C8C8C"    # Gray for peers
+
+# Create colors vector
+bar_colors <- ifelse(tuition_data$is_depaul, depaul_color, peer_color)
+
+# ============================================================================
+# CHART 1: Horizontal Bar Chart (Full comparison)
+# ============================================================================
+
+png("/mnt/user-data/outputs/depaul_comparison_bars.png", width=1200, height=900, res=120)
+par(mar=c(5, 12, 4, 2))
+
+# Clean institution names for display
+display_names <- gsub("\\.", " ", tuition_data$institution)
+
+# Create horizontal barplot
+bp <- barplot(tuition_data$tuition, 
+        names.arg = display_names,
+        horiz = TRUE,
+        las = 1,
+        col = bar_colors,
+        border = NA,
+        xlab = "Annual Tuition & Fees ($)",
+        main = "DePaul vs. Peer Institutions\nUndergraduate Tuition & Fees (2024-25, In-State)",
+        cex.names = 0.65,
+        cex.axis = 0.9,
+        cex.main = 1.2,
+        xlim = c(0, max(tuition_data$tuition) * 1.2))
+
+# Add value labels
+text(tuition_data$tuition + max(tuition_data$tuition) * 0.02, 
+     bp,
+     labels = paste0("$", format(tuition_data$tuition, big.mark=",", scientific=FALSE)),
+     cex = 0.65,
+     pos = 4)
+
+# Add caption
+mtext("Source: IPEDS", side=1, line=4, adj=1, cex=0.7, col="gray40")
+
+dev.off()
+
+# ============================================================================
+# CHART 2: Box plot with jittered points
+# ============================================================================
+
+png("/mnt/user-data/outputs/depaul_comparison_distribution.png", width=1200, height=700, res=120)
+par(mar=c(5, 4, 4, 2))
+
+# Create box plot
+boxplot(tuition_data$tuition, 
+        horizontal = TRUE,
+        col = "gray90",
+        border = "gray50",
+        xlab = "Annual Tuition & Fees ($)",
+        main = "DePaul Position Among Peer Institutions\nUndergraduate Tuition & Fees Distribution (2024-25)",
+        cex.main = 1.2,
+        xlim = c(min(tuition_data$tuition) * 0.9, max(tuition_data$tuition) * 1.1),
+        outline = FALSE)
+
+# Add jittered points for peers
+non_depaul_tuitions <- tuition_data$tuition[!tuition_data$is_depaul]
+if(length(non_depaul_tuitions) > 0) {
+  points(non_depaul_tuitions, 
+         jitter(rep(1, length(non_depaul_tuitions)), amount=0.05),
+         col = peer_color,
+         pch = 16,
+         cex = 1.5)
+}
+
+# Highlight DePaul
+if(!is.na(depaul_tuition)) {
+  points(depaul_tuition, 1,
+         col = depaul_color,
+         pch = 16,
+         cex = 2.5)
+  
+  # Add DePaul label
+  text(depaul_tuition, 1.25,
+       labels = paste0("DePaul: $", format(depaul_tuition, big.mark=",", scientific=FALSE)),
+       cex = 1.1,
+       font = 2)
+}
+
+# Add caption
+mtext("Source: IPEDS", side=1, line=4, adj=1, cex=0.7, col="gray40")
+
+dev.off()
+
+# ============================================================================
+# CHART 3: Compact dashboard view (top/bottom + DePaul)
+# ============================================================================
+
+png("/mnt/user-data/outputs/depaul_comparison_compact.png", width=1200, height=800, res=120)
+par(mar=c(5, 10, 4, 2))
+
+# Select institutions to display
+top_n <- 6
+bottom_n <- 6
+
+top_indices <- 1:min(top_n, nrow(tuition_data))
+bottom_indices <- max(1, nrow(tuition_data) - bottom_n + 1):nrow(tuition_data)
+
+if(sum(tuition_data$is_depaul) > 0) {
+  depaul_index <- which(tuition_data$is_depaul)
+  display_indices <- sort(unique(c(top_indices, bottom_indices, depaul_index)))
+} else {
+  display_indices <- sort(unique(c(top_indices, bottom_indices)))
+}
+
+display_data <- tuition_data[display_indices, ]
+display_colors <- bar_colors[display_indices]
+display_names <- gsub("\\.", " ", display_data$institution)
+
+# Create barplot
+bp2 <- barplot(display_data$tuition,
+        names.arg = display_names,
+        horiz = TRUE,
+        las = 1,
+        col = display_colors,
+        border = NA,
+        xlab = "Annual Tuition & Fees ($)",
+        main = if(!is.na(depaul_rank)) {
+          paste0("DePaul Undergraduate Tuition Ranking\n",
+                 "Ranked ", depaul_rank, " of ", nrow(tuition_data), 
+                 " peer institutions (", depaul_percentile, "th percentile)")
+        } else {
+          "Undergraduate Tuition Comparison\nTop and Bottom Institutions"
+        },
+        cex.names = 0.75,
+        cex.axis = 0.9,
+        cex.main = 1.1,
+        xlim = c(0, max(display_data$tuition) * 1.2))
+
+# Add value labels
+text(display_data$tuition + max(display_data$tuition) * 0.02,
+     bp2,
+     labels = paste0("$", format(display_data$tuition, big.mark=",", scientific=FALSE)),
+     cex = 0.7,
+     pos = 4)
+
+# Add ellipsis if there's a gap
+if (length(display_indices) < nrow(tuition_data)) {
+  gap_start <- max(which(display_indices <= top_n))
+  gap_end <- min(which(display_indices >= nrow(tuition_data) - bottom_n + 1))
+  if(gap_end - gap_start > 1) {
+    middle_pos <- (bp2[gap_start] + bp2[gap_end]) / 2
+    text(max(display_data$tuition) * 0.4, middle_pos,
+         labels = "⋮",
+         cex = 2.5,
+         col = "gray50")
+  }
+}
+
+# Add caption
+mtext("Source: IPEDS • Academic Year 2024-25", side=1, line=4, adj=1, cex=0.7, col="gray40")
+
+dev.off()
+
+cat("\nCharts saved successfully!\n")
+cat("Files created:\n")
+cat("  - depaul_comparison_bars.png (full comparison)\n")
+cat("  - depaul_comparison_distribution.png (distribution view)\n")
+cat("  - depaul_comparison_compact.png (compact dashboard view)\n")

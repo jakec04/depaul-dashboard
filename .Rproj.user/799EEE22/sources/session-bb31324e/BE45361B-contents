@@ -1,0 +1,281 @@
+---
+title: "How DePaul Stacks Up - Retention & Graduation"
+format: 
+  dashboard:
+    theme: cosmo
+    css: custom.css
+---
+
+```{css}
+/* DePaul blue header with white text */
+.navbar {
+  background-color: #0032A0 !important;
+}
+
+.navbar-brand {
+  color: white !important;
+  font-weight: 600;
+}
+
+.navbar .navbar-title {
+  color: white !important;
+}
+
+/* Optimize value boxes for big numbers without icons */
+.valuebox {
+  padding: 20px 15px !important;
+}
+
+.valuebox-value {
+  font-size: 2.5rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}
+
+.valuebox-title {
+  font-size: 0.9rem !important;
+  margin-bottom: 8px !important;
+}
+```
+
+```{r setup, include=FALSE}
+library(knitr)
+library(plotly)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load-data}
+# Set the path to your CSV file
+csv_path <- "/Users/jakecox/rstudio/990-analysis/compare-institutions-2025-11-21-17-50.xlsx - Retention and Graduation.csv"
+
+# Read header row to get institution names
+header_row <- read.csv(csv_path,
+                      skip = 3, nrows = 1, header = FALSE, stringsAsFactors = FALSE)
+
+# Get institution names (starting from column 4)
+institutions <- as.character(header_row[1, 4:ncol(header_row)])
+institutions <- institutions[institutions != ""]
+
+# Read the data
+data <- read.csv(csv_path, 
+                skip = 4, header = FALSE, stringsAsFactors = FALSE)
+
+# Extract key metrics
+# Row 5: First to second year retention rates (Full-time, Fall 2022)
+retention_values <- as.numeric(data[1, 4:ncol(data)])
+
+# Row 11: 6-year graduation rate (2017 cohort)
+grad_6yr_values <- as.numeric(data[7, 4:ncol(data)])
+
+# Row 9: 4-year graduation rate (2017 cohort) 
+grad_4yr_values <- as.numeric(data[5, 4:ncol(data)])
+
+# Trim to match institutions length
+if(length(retention_values) > length(institutions)) {
+  retention_values <- retention_values[1:length(institutions)]
+  grad_6yr_values <- grad_6yr_values[1:length(institutions)]
+  grad_4yr_values <- grad_4yr_values[1:length(institutions)]
+}
+
+# Create datasets
+retention_data <- data.frame(
+  institution = institutions,
+  retention = retention_values,
+  grad_6yr = grad_6yr_values,
+  grad_4yr = grad_4yr_values,
+  stringsAsFactors = FALSE
+)
+
+# Remove NA values
+retention_data <- retention_data[!is.na(retention_data$retention), ]
+retention_data$is_depaul <- grepl("DePaul", retention_data$institution, ignore.case = TRUE)
+
+# Sort by retention rate DESCENDING (higher is better!)
+retention_data <- retention_data[order(-retention_data$retention), ]
+retention_data$rank <- 1:nrow(retention_data)
+
+# Clean institution names
+retention_data$institution_clean <- gsub("\\.", " ", retention_data$institution)
+
+# Get DePaul's information
+depaul_rank <- retention_data$rank[retention_data$is_depaul]
+depaul_retention <- retention_data$retention[retention_data$is_depaul]
+depaul_grad_6yr <- retention_data$grad_6yr[retention_data$is_depaul]
+depaul_grad_4yr <- retention_data$grad_4yr[retention_data$is_depaul]
+depaul_percentile <- round((depaul_rank / nrow(retention_data)) * 100)
+
+# Summary statistics
+median_retention <- median(retention_data$retention)
+min_retention <- min(retention_data$retention)
+max_retention <- max(retention_data$retention)
+median_grad_6yr <- median(retention_data$grad_6yr)
+
+# Calculate percentage difference
+pct_diff_retention <- round(((depaul_retention - median_retention) / median_retention) * 100, 1)
+pct_diff_grad <- round(((depaul_grad_6yr - median_grad_6yr) / median_grad_6yr) * 100, 1)
+
+# Colors
+depaul_color <- "#0032A0"
+peer_color <- "#8C8C8C"
+retention_data$color <- ifelse(retention_data$is_depaul, depaul_color, peer_color)
+```
+
+# Retention & Graduation
+
+## Row {height="20%"}
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Retention Rank"
+list(
+  color = if(depaul_rank <= nrow(retention_data)/3) "success" else if(depaul_rank <= 2*nrow(retention_data)/3) "warning" else "danger",
+  value = paste(depaul_rank, "of", nrow(retention_data))
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "1st-2nd Year Retention"
+list(
+  color = "info",
+  value = paste0(depaul_retention, "%")
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "6-Year Grad Rate"
+list(
+  color = "info",
+  value = paste0(depaul_grad_6yr, "%")
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "4-Year Grad Rate"
+list(
+  color = "info",
+  value = paste0(depaul_grad_4yr, "%")
+)
+```
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Peer Median Retention"
+list(
+  color = "light",
+  value = paste0(median_retention, "%")
+)
+```
+
+## Row {height="80%"}
+
+### Column {width="70%"}
+
+```{r}
+#| title: "DePaul vs. Peer Institutions - First-to-Second Year Retention Rates"
+#| padding: 0px
+
+# Reverse order for display (highest at top)
+retention_data_display <- retention_data[nrow(retention_data):1, ]
+
+# Create interactive plotly chart
+fig <- plot_ly(
+  data = retention_data_display,
+  y = ~institution_clean,
+  x = ~retention,
+  type = 'bar',
+  orientation = 'h',
+  marker = list(color = ~color),
+  text = ~paste0(retention, "%"),
+  textposition = 'outside',
+  textfont = list(size = 10),
+  hovertemplate = paste(
+    '<b style="font-size: 14px;">%{y}</b><br>',
+    '<span style="font-size: 13px;">Retention Rate: <b>%{x}%</b></span><br>',
+    '<span style="font-size: 13px;">6-Year Grad: <b>%{customdata[0]}%</b></span><br>',
+    '<span style="font-size: 13px;">4-Year Grad: <b>%{customdata[1]}%</b></span><br>',
+    '<span style="font-size: 13px;">Retention Rank: <b>%{customdata[2]} of ', nrow(retention_data), '</b></span><br>',
+    '<span style="font-size: 11px; color: #666;">(Higher rank = better retention)</span>',
+    '<extra></extra>'
+  ),
+  customdata = ~cbind(grad_6yr, grad_4yr, rank)
+) %>%
+  layout(
+    xaxis = list(
+      title = "First-to-Second Year Retention Rate (%)",
+      range = c(0, 105),
+      showgrid = TRUE,
+      gridcolor = "#f0f0f0"
+    ),
+    yaxis = list(
+      title = "",
+      categoryorder = "array",
+      categoryarray = ~institution_clean
+    ),
+    showlegend = FALSE,
+    margin = list(l = 150, r = 80, t = 10, b = 70),
+    plot_bgcolor = "white",
+    paper_bgcolor = "white",
+    annotations = list(
+      list(
+        text = "Peer group: DePaul-selected institutions + Big East conference members | Data: Fall 2022 cohort | Source: IPEDS",
+        xref = "paper",
+        yref = "paper",
+        x = 0.5,
+        y = -0.08,
+        xanchor = "center",
+        showarrow = FALSE,
+        font = list(size = 9, color = "#666")
+      )
+    )
+  ) %>%
+  config(displayModeBar = TRUE, displaylogo = FALSE)
+
+fig
+```
+
+### Column {width="30%"}
+
+::: {.card title="Retention & Graduation Analysis"}
+
+**DePaul's Performance**
+
+- **Retention Rank:** `r depaul_rank` of `r nrow(retention_data)`
+- **1st-2nd Year Retention:** `r depaul_retention`%
+- **6-Year Graduation:** `r depaul_grad_6yr`%
+- **4-Year Graduation:** `r depaul_grad_4yr`%
+
+**Peer Comparison**
+
+- **Peer Median Retention:** `r median_retention`%
+- **Peer Median 6-Year Grad:** `r median_grad_6yr`%
+- **Range:** `r min_retention`% - `r max_retention`%
+- **DePaul Percentile:** `r depaul_percentile`th
+
+**Context**
+
+DePaul's retention rate is `r ifelse(pct_diff_retention >= 0, paste0(abs(pct_diff_retention), "% above"), paste0(abs(pct_diff_retention), "% below"))` the peer median. The 6-year graduation rate of `r depaul_grad_6yr`% is `r ifelse(pct_diff_grad >= 0, paste0(abs(pct_diff_grad), "% above"), paste0(abs(pct_diff_grad), "% below"))` the peer median of `r median_grad_6yr`%.
+
+These metrics reflect the Fall 2022 cohort for retention and 2017 cohort for graduation rates.
+
+---
+
+::: {style="font-size: 0.85em; color: #666;"}
+*Peer group includes DePaul-selected institutions plus Big East conference members*
+
+*Source: IPEDS • Retention: Fall 2022 cohort • Graduation: 2017 cohort*
+:::
+
+:::

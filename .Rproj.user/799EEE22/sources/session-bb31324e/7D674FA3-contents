@@ -1,0 +1,173 @@
+---
+title: "DePaul University Tuition Analysis"
+format: 
+  dashboard:
+    theme: cosmo
+    logo: depaul-logo.png  # Optional: add your logo
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load-script}
+# Source the visualization script to generate plots and get data
+source("depaul_visualization.R")
+
+# The script creates these outputs:
+# - tuition_data: dataframe with all institution tuition data
+# - depaul_rank, depaul_tuition, depaul_percentile: DePaul metrics
+# - median_tuition, min_tuition, max_tuition: summary statistics
+```
+
+# Summary {height="30%"}
+
+## Row {height="100%"}
+
+### {width="25%"}
+
+```{r}
+#| content: valuebox
+#| title: "DePaul Ranking"
+list(
+  icon = "trophy",
+  color = "primary",
+  value = paste(depaul_rank, "of", nrow(tuition_data))
+)
+```
+
+### {width="25%"}
+
+```{r}
+#| content: valuebox
+#| title: "DePaul Tuition"
+list(
+  icon = "cash-coin",
+  color = "info",
+  value = paste0("$", format(depaul_tuition, big.mark=","))
+)
+```
+
+### {width="25%"}
+
+```{r}
+#| content: valuebox
+#| title: "vs. Median"
+diff_from_median <- depaul_tuition - median_tuition
+pct_diff <- round(((depaul_tuition - median_tuition) / median_tuition) * 100, 1)
+list(
+  icon = if(pct_diff < 0) "arrow-down" else "arrow-up",
+  color = if(pct_diff < 0) "success" else "warning",
+  value = paste0("$", format(abs(diff_from_median), big.mark=","), " (", pct_diff, "%)")
+)
+```
+
+### {width="25%"}
+
+```{r}
+#| content: valuebox
+#| title: "Percentile"
+list(
+  icon = "bar-chart",
+  color = if(depaul_percentile < 25) "success" else if(depaul_percentile < 50) "info" else "warning",
+  value = paste0(depaul_percentile, "th")
+)
+```
+
+# Full Comparison {height="70%"}
+
+## Row {height="100%"}
+
+### {width="100%"}
+
+```{r}
+#| title: "DePaul vs. All Peer Institutions"
+#| fig-width: 12
+#| fig-height: 8
+knitr::include_graphics("/mnt/user-data/outputs/depaul_comparison_bars.png")
+```
+
+# Distribution Analysis
+
+## Row {.tabset}
+
+### Distribution View
+
+```{r}
+#| title: "Tuition Distribution with DePaul Highlighted"
+#| fig-width: 12
+#| fig-height: 7
+knitr::include_graphics("/mnt/user-data/outputs/depaul_comparison_distribution.png")
+```
+
+### Compact View
+
+```{r}
+#| title: "Top and Bottom Institutions"
+#| fig-width: 12
+#| fig-height: 8
+knitr::include_graphics("/mnt/user-data/outputs/depaul_comparison_compact.png")
+```
+
+### Data Table
+
+```{r}
+#| title: "Full Data Comparison"
+# Create a formatted table
+library(knitr)
+table_data <- tuition_data[, c("institution", "tuition", "rank")]
+table_data$institution <- gsub("\\.", " ", table_data$institution)
+table_data$tuition <- paste0("$", format(table_data$tuition, big.mark=","))
+colnames(table_data) <- c("Institution", "Tuition & Fees (2024-25)", "Rank")
+
+# Highlight DePaul row
+table_data$Institution[tuition_data$is_depaul] <- 
+  paste0("**", table_data$Institution[tuition_data$is_depaul], "**")
+
+kable(table_data, row.names = FALSE, align = c("l", "r", "c"))
+```
+
+# Insights
+
+## Row
+
+### Key Findings {width="50%"}
+
+**DePaul's Competitive Position**
+
+-   DePaul ranks **{r} depaul_rank** out of **{r} nrow(tuition_data)** peer institutions
+-   Tuition is **{r} format(abs(depaul_tuition - median_tuition), big.mark=",")** ({r} round(abs(pct_diff), 1)%}) **{r} ifelse(pct_diff < 0, "below", "above")** the median
+-   Positioned in the **{r} depaul_percentile**th percentile
+
+**Peer Landscape**
+
+-   Median tuition: **\${r} format(median_tuition, big.mark=",")**
+-   Range: **\${r} format(min_tuition, big.mark=",")** to **\${r} format(max_tuition, big.mark=",")**
+-   DePaul offers a **value proposition** relative to many peers
+
+### Statistical Summary {width="50%"}
+
+```{r}
+#| title: "Tuition Statistics Summary"
+summary_df <- data.frame(
+  Metric = c("Minimum", "1st Quartile", "Median", "Mean", "3rd Quartile", "Maximum", "DePaul"),
+  Value = c(
+    paste0("$", format(min_tuition, big.mark=",")),
+    paste0("$", format(q1_tuition, big.mark=",")),
+    paste0("$", format(median_tuition, big.mark=",")),
+    paste0("$", format(round(mean(tuition_data$tuition)), big.mark=",")),
+    paste0("$", format(q3_tuition, big.mark=",")),
+    paste0("$", format(max_tuition, big.mark=",")),
+    paste0("$", format(depaul_tuition, big.mark=","))
+  )
+)
+
+kable(summary_df, row.names = FALSE, align = c("l", "r"))
+```
+
+---
+
+*Data Source: IPEDS (Integrated Postsecondary Education Data System)*  
+*Academic Year: 2024-25*  
+*Note: Tuition figures represent in-state, full-time undergraduate tuition and required fees.*
